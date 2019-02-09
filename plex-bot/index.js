@@ -84,10 +84,12 @@ function playNext({next: current, audio, video, part}, movies) {
       '-re',
       '-i', part.file,
       '-vf', `${titleDrawText}, ${timeDrawText}`,
-      '-af', 'aresample=async=1000',
       '-c:v', 'libx264',
       '-pix_fmt', 'yuv420p',
-      '-preset', 'veryfast',
+      '-preset', process.env.ENCODER_PRESET || 'veryfast',
+      '-tune', process.env.ENCODER_TUNE || 'zerolatency',
+      '-use_wallclock_as_timestamps', '1',
+      '-fflags', '+genpts',
       '-map', `0:${video.index}`,
       '-map', `0:${audio.index}`,
       '-b:v', '3500k',
@@ -109,12 +111,12 @@ function playNext({next: current, audio, video, part}, movies) {
 
     angelthumpLogin().then(accessToken => {
       const req = https.request({
-        hostname: 'angelthump.com',
-        path: '/api/title',
+        hostname: 'api.angelthump.com',
+        path: '/user/v1/title',
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Cookie': cookie.serialize('angelthump-jwt', accessToken),
+          'Authorization': `Bearer ${accessToken}`,
         },
       }, res => res.pipe(process.stdout));
       req.on('error', e => console.error(e));
@@ -183,6 +185,7 @@ function angelthumpLogin() {
       },
     }, res => res.on('data', data => {
       const {accessToken} = JSON.parse(data);
+      console.log(data.toString());
       resolve(accessToken);
     }));
     req.on('error', e => console.error(e));
@@ -194,4 +197,3 @@ function angelthumpLogin() {
     req.end();
   });
 }
-
