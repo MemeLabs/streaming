@@ -67,8 +67,8 @@ def stream_file(file, args, streamkey):
     elif args.audiotrack:
         process += "-map 0:a:{} ".format(args.audiotrack)
     process += "-x264-params keyint=60 -c:a aac -strict 2 -ar 44100 -b:a 160k -ac 2 -bufsize 7000k "
-    process += '-f flv "rtmp://nyc-ingest.angelthump.com:1935/live/{0}"'.format(
-        streamkey
+    process += '-f flv "rtmp://{0}-ingest.angelthump.com:1935/live/{1}"'.format(
+        args.ingest, streamkey
     )
     p = subprocess.Popen(process, shell=True)
     try:
@@ -107,5 +107,6 @@ if __name__ == "__main__":
     parser.add_argument("-at", "--audiotrack", help="Audio track")
     parser.add_argument("--skip", type=int, help="Which episode to start at (0 index)")
     parser.add_argument("--max", type=int, help="Final episode # to stream")
+    parser.add_argument("--ingest",default="nyc", help="Angelthump ingest server to point to: nyc, sfo, ams, fra")
     args = parser.parse_args()
     main(args)
