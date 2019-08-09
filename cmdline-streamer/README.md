@@ -26,6 +26,28 @@ To see all available flags run:
 ./streamscript --help
 ```
 
+```
+usage: streaming.py [-h] [-F FOLDER] [-f FILE] [-st SUBTRACK] [-sf SUBFILE]
+                    [-at AUDIOTRACK] [--skip SKIP] [--max MAX]
+                    [--ingest INGEST]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -F FOLDER, --folder FOLDER
+                        Folder absolute path
+  -f FILE, --file FILE  File absolute path
+  -st SUBTRACK, --subtrack SUBTRACK
+                        Subtitle track
+  -sf SUBFILE, --subfile SUBFILE
+                        Subtitle file
+  -at AUDIOTRACK, --audiotrack AUDIOTRACK
+                        Audio track
+  --skip SKIP           Which episode to start at (0 index)
+  --max MAX             Final episode # to stream
+  --ingest INGEST       Angelthump ingest server to point to: nyc, sfo, ams,
+                        fra
+```
+
 Example running
 
 ```
