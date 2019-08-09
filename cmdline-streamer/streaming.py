@@ -64,6 +64,8 @@ def stream_file(file, args, streamkey):
             process += "-map 0:a:{} ".format(args.audiotrack)
         else:
             process += "-map 0:a:0 "
+    elif args.audiotrack:
+        process += "-map 0:a:{} ".format(args.audiotrack)
     process += "-x264-params keyint=60 -c:a aac -strict 2 -ar 44100 -b:a 160k -ac 2 -bufsize 7000k "
     process += '-f flv "rtmp://nyc-ingest.angelthump.com:1935/live/{0}"'.format(
         streamkey
