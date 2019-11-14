@@ -7,8 +7,11 @@
   "dependencies": {
     "cookie": "^0.3.1",
     "dotenv": "^6.1.0",
+    "es6-promise": "^4.2.8",
     "fluent-ffmpeg": "^2.1.2",
+    "isomorphic-fetch": "^2.2.1",
     "minimist": "^1.2.0",
-    "plex-api": "^5.2.1"
+    "plex-api": "^5.2.1",
+    "ws": "^7.2.0"
   }
 }
