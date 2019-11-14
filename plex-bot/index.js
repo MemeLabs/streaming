@@ -212,7 +212,7 @@ async function appendToHistory(movie) {
 
 async function updateAngelthumpTitle(movie) {
   const accessToken = await createAngelthumpToken();
-  await fetch('https://api.angelthump.com/user/v1/title', {
+  const res = await fetch('https://api.angelthump.com/user/v1/title', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -220,16 +220,17 @@ async function updateAngelthumpTitle(movie) {
     },
     body: JSON.stringify({title: `${movie.title} (${movie.year})`}),
   });
+  return await res.text()
 }
 
 async function createAngelthumpToken() {
-  const res = await fetch('https://angelthump.com/authentication', {
+  const res = await fetch('https://sso.angelthump.com/authentication', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      strategy: 'local-username',
+      strategy: 'local',
       username: process.env.ANGELTHUMP_USER,
       password: process.env.ANGELTHUMP_PASSWORD,
     }),
