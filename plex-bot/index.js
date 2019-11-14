@@ -1,10 +1,11 @@
-const PlexAPI = require('plex-api');
-const path = require('path');
-const fs = require('fs').promises;
-const {spawn} = require('child_process');
-const fetch = require('isomorphic-fetch');
-const WebSocket = require('ws');
 const cookie = require('cookie');
+const fetch = require('isomorphic-fetch');
+const fs = require('fs').promises;
+const path = require('path');
+const PlexAPI = require('plex-api');
+const {spawn} = require('child_process');
+const {sprintf} = require('sprintf-js');
+const WebSocket = require('ws');
 
 require('dotenv').config()
 const argv = require('minimist')(process.argv.slice(2));
@@ -49,14 +50,18 @@ const plex = new PlexAPI({
     current = next;
 
     console.log(`beginning ${movie.title} (${movie.year})`)
-    await Promise.allSettled([
-      logAsyncFn('playing movie', playMovie(movie, streams, next.movie)),
-      logAsyncFn('updating history', appendToHistory(movie)),
-      logAsyncFn('updating angelthump', updateAngelthumpTitle(movie)),
-      logAsyncFn('notifying chat', notifyChat(movie)),
-    ]);
+    try {
+      await Promise.allSettled([
+        logAsyncFn('playing movie', playMovie(movie, streams, next.movie)),
+        logAsyncFn('updating history', appendToHistory(movie)),
+        logAsyncFn('updating angelthump', updateAngelthumpTitle(movie)),
+        logAsyncFn('notifying chat', notifyChat(movie)),
+      ]);
+    } catch (e) {
+      console.log('error playing movie', err);
+    }
 
-    await new Promise(resolve => setTimeout(process.env.INTERMISSION_MS, resolve));
+    await new Promise(resolve => setTimeout(resolve, process.env.INTERMISSION_MS));
   }
 })();
 
@@ -124,19 +129,15 @@ async function selectMediaStreams(movie) {
     .sort((a, b) => a.bitrate - b.bitrate);
 
   for (m of media) {
-    const part = m.Part[0]
-    const video = part.Stream
-      .filter(stream => stream.streamType === 1)
-      .shift();
-    const audio = part.Stream
-      .filter(stream => stream.streamType === 2 && stream.languageCode === 'eng')
-      .shift();
+    const {Stream, file} = m.Part[0];
+    const video = Stream.find(({streamType}) => streamType === 1);
+    const audio = Stream.find(({streamType, languageCode}) => streamType === 2 && languageCode === 'eng');
 
     if (video && audio) {
-      return {video, audio, part};
+      return {video, audio, file};
     }
   }
-};
+}
 
 const filterMedia = media => (
   media.bitrate >= process.env.MIN_BITRATE &&
@@ -154,19 +155,19 @@ const filterMetadata = ({type, Media, year, rating}) => (
   rating <= process.env.MAX_RATING
 );
 
-function playMovie(movie, {audio, video, part}, nextMovie) {
+function playMovie(movie, {audio, video, file}, nextMovie) {
   const title = `${movie.title} (${movie.year}) • ${nextMovie.title} (${nextMovie.year})`;
   const titleDrawText = formatDrawText(title, 10, 10);
 
   const now = new Date();
-  const timestamp = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
-  const timeDrawText = formatDrawText(`${timestamp} ${process.env.TIME_ZONE}`, 10, 36)
+  const timestamp = sprintf("%02d:%02d %s", now.getHours(), now.getMinutes(), process.env.TIME_ZONE);
+  const timeDrawText = formatDrawText(timestamp, 10, 36)
 
   const keyInterval = Math.round(video.frameRate) * 2;
 
   const options = [
     '-re',
-    '-i', part.file,
+    '-i', file,
     '-vf', `${titleDrawText}, ${timeDrawText}`,
     '-c:v', 'libx264',
     '-pix_fmt', 'yuv420p',
@@ -189,15 +190,15 @@ function playMovie(movie, {audio, video, part}, nextMovie) {
     '-bufsize', '7000k',
     '-f', 'flv', process.env.ANGELTHUMP_INGEST,
   ];
+  const ffmpeg = spawn('ffmpeg', options);
+  ffmpeg.stdout.pipe(process.stdout);
+  ffmpeg.stderr.pipe(process.stderr);
 
   return new Promise((resolve, reject) => {
-    const ffmpeg = spawn('ffmpeg', options);
-    ffmpeg.stdout.pipe(process.stdout);
-    ffmpeg.stderr.pipe(process.stderr);
     ffmpeg.on('close', resolve);
     ffmpeg.on('error', reject);
   });
-};
+}
 
 function formatDrawText(text, x, y) {
   const sanitizedTitle = text.replace(/(\:)/g, '\\$1').replace(/\'/g, '');
@@ -208,7 +209,7 @@ async function appendToHistory(movie) {
   history.previous = movie.key;
   history[movie.key] = movie.title;
   await fs.writeFile(historyPath, JSON.stringify(history, null, 2));
-};
+}
 
 async function updateAngelthumpTitle(movie) {
   const accessToken = await createAngelthumpToken();
@@ -240,17 +241,17 @@ async function createAngelthumpToken() {
 }
 
 function notifyChat(movie) {
-  return new Promise((resolve, reject) => {
-    const options = {
-      headers: {
-        Cookie: cookie.serialize('jwt', process.env.STRIMS_JWT),
-      }
-    };
-    const ws = new WebSocket('wss://chat.strims.gg/ws', [], options);
+  const options = {
+    headers: {
+      Cookie: cookie.serialize('jwt', process.env.STRIMS_JWT),
+    },
+  };
+  const ws = new WebSocket('wss://chat.strims.gg/ws', [], options);
 
+  return new Promise((resolve, reject) => {
     ws.on('open', () => {
       const data = `${movie.title} (${movie.year}) started at ${process.env.STRIMS_URL}`;
-      ws.send('MSG ' + JSON.stringify({data}))
+      ws.send('MSG ' + JSON.stringify({data}));
       ws.close();
 
       resolve();
@@ -260,7 +261,7 @@ function notifyChat(movie) {
 }
 
 async function logAsyncFn(action, fn) {
-  console.log(`${action}`);
+  console.log(action);
   let res;
   try {
     res = await fn;
