@@ -38,7 +38,7 @@ optional arguments:
 #### First time:
 
 ```
-./streamscript.py http://cool.site/stream.m3u8 --streamkey STREAMKEY
+./m3u8.py http://cool.site/stream.m3u8 --streamkey STREAMKEY
 ```
 
 #### Usual use:
