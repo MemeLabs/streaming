@@ -1,6 +1,7 @@
 const cookie = require('cookie');
 const fetch = require('isomorphic-fetch');
 const fs = require('fs').promises;
+const nameToImdb = require('name-to-imdb');
 const path = require('path');
 const PlexAPI = require('plex-api');
 const {spawn} = require('child_process');
@@ -17,7 +18,7 @@ const plex = new PlexAPI({
   hostname: process.env.PLEX_HOST,
   username: process.env.PLEX_USER,
   password: process.env.PLEX_PASSWORD,
-  managedUser: {
+  managedUser: process.env.PLEX_MANAGED_USER && {
     name: process.env.PLEX_MANAGED_USER,
   },
   options: {
@@ -28,19 +29,18 @@ const plex = new PlexAPI({
 });
 
 (async function() {
+  const playlists = await loadPlaylists();
   const library = await plex.query(`/library/sections/${process.env.PLEX_LIBRARY_ID}/all`);
   const movies = library.MediaContainer.Metadata.filter(filterMetadata);
   console.log(`found ${movies.length} movies`);
 
-  let previous = history.previous && !argv['ignore-previous']
-    ? movies.find(movie => movie.key === history.previous)
-    : null;
+  let previous = history.previous && !argv['ignore-previous'] && movies.find(({key}) => key === history.previous);
   if (!previous) {
     previous = movies[Math.floor(Math.random() * movies.length)];
   }
 
   let current;
-  for await (let next of selectMovies(previous, movies)) {
+  for await (let next of selectMovies(previous, movies, playlists)) {
     if (!current) {
       current = next;
       continue;
@@ -53,7 +53,6 @@ const plex = new PlexAPI({
     try {
       await Promise.allSettled([
         logAsyncFn('playing movie', playMovie(movie, streams, next.movie)),
-        logAsyncFn('updating history', appendToHistory(movie)),
         logAsyncFn('updating angelthump', updateAngelthumpTitle(movie)),
         logAsyncFn('notifying chat', notifyChat(movie)),
       ]);
@@ -65,9 +64,19 @@ const plex = new PlexAPI({
   }
 })();
 
-async function* selectMovies(previous, movies) {
+async function loadPlaylists() {
+  const playlistsRes = await plex.query('/playlists');
+  const metadata = await Promise.all(playlistsRes.MediaContainer.Metadata
+    .map(({key}) => plex.query(key).then(res => res.MediaContainer.Metadata)));
+  const index = metadata.flat().reduce((index, {key}) => ({...index, [key]: true}), {});
+  return {metadata, index};
+}
+
+async function* selectMovies(previous, movies, playlists) {
   while (true) {
-    const next = selectNext(previous, movies);
+    const next = selectNext(previous, movies, playlists);
+    await appendToHistory(next);
+
     const streams = await selectMediaStreams(next, movies);
     if (streams) {
       yield {
@@ -79,21 +88,44 @@ async function* selectMovies(previous, movies) {
   }
 }
 
-function selectNext(prev, movies) {
+function selectNext(prev, movies, playlists) {
+  let playlist = findPlaylist(prev, playlists);
+
+  // if the previous movie was in a playlist pick the next movie in that playlist
+  if (playlist) {
+    const nextIndex = playlist.findIndex(({key}) => key === prev.key) + 1;
+    if (nextIndex < playlist.length) {
+      return playlist[nextIndex];
+    }
+  }
+
   const weights = generateWeights(prev, movies);
   const weightSum = weights.reduce((sum, [weight]) => sum + weight, 0);
 
   const rand = (1 - Math.pow(Math.random(), 10)) * weightSum;
 
   let runningSum = weightSum;
-  const next = weights.find(([weight, i]) => {
+  const nextWeight = weights.find(([weight, i]) => {
     runningSum -= weight;
     return runningSum <= rand
       && movies[i].key !== prev.key
       && history[movies[i].key] === undefined;
   });
+  const next = movies[nextWeight[1]]
 
-  return movies[next[1]];
+  // if the selected movie exists in a playlist start from the beginning
+  playlist = findPlaylist(next, playlists);
+  if (playlist) {
+    return playlist[0];
+  }
+
+  return next;
+}
+
+function findPlaylist(movie, playlists) {
+  if (playlists.index[movie.key]) {
+    return playlists.metadata.find(metadata => metadata.some(({key}) => key === movie.key));
+  }
 }
 
 const toLookupTable = values => (values || []).reduce((t, {tag}) => ({...t, [tag]: true}), {});
@@ -240,7 +272,7 @@ async function createAngelthumpToken() {
   return accessToken;
 }
 
-function notifyChat(movie) {
+async function notifyChat(movie) {
   const options = {
     headers: {
       Cookie: cookie.serialize('jwt', process.env.STRIMS_JWT),
@@ -248,16 +280,30 @@ function notifyChat(movie) {
   };
   const ws = new WebSocket('wss://chat.strims.gg/ws', [], options);
 
-  return new Promise((resolve, reject) => {
-    ws.on('open', () => {
-      const data = `${movie.title} (${movie.year}) started at ${process.env.STRIMS_URL}`;
-      ws.send('MSG ' + JSON.stringify({data}));
-      ws.close();
+  const [imdbUrl] = await Promise.all([
+    getImdbUrl(movie),
+    new Promise((resolve, reject) => {
+      ws.on('open', resolve);
+      ws.on('error', reject);
+    }),
+  ]);
 
-      resolve();
-    });
-    ws.on('error', reject);
+  const imdbInfo = imdbUrl && ` - ${imdbUrl} (${movie.rating})`;
+  let data = `${process.env.STRIMS_EMOTE} ${movie.title} (${movie.year})${imdbInfo} started at ${process.env.STRIMS_URL}`;
+  ws.send('MSG ' + JSON.stringify({data}));
+  ws.close();
+}
+
+async function getImdbUrl(movie) {
+  const {res} = await new Promise((resolve, reject) => {
+    const query = {
+      name: movie.title,
+      year: movie.year,
+    };
+    nameToImdb(query, (err, res, inf) => err ? reject(err) : resolve({res, inf}));
   });
+
+  return res && res.startsWith('tt') && `imdb.com/title/${res}`;
 }
 
 async function logAsyncFn(action, fn) {
