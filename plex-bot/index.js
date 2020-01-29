@@ -158,7 +158,7 @@ async function selectMediaStreams(movie) {
   const record = await plex.query(movie.key);
   const media = record.MediaContainer.Metadata[0].Media
     .filter(filterMedia)
-    .sort((a, b) => a.bitrate - b.bitrate);
+    .sort((a, b) => b.bitrate - a.bitrate);
 
   for (m of media) {
     const {Stream, file} = m.Part[0];
