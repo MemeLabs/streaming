@@ -73,5 +73,8 @@ if __name__ == "__main__":
   parser.add_argument("streamlink")
   args = parser.parse_args()
   
-  Initialize(args)
-  main(readConfig(args), args)
+  try:
+    Initialize(args)
+    main(readConfig(args), args)
+  except Exception as e:
+    print(e)
