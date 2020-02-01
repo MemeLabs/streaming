@@ -54,13 +54,16 @@ optional arguments:
 
 Locate the config file `config.json` and change `ffmpeg` key to your ffmpeg script.
 
+IMPORTANT:
+The stream link MUST be replaced with `{0}` and the key MUST be replaced with `{1}`
+
 #### Config Location
 Linux
 ```
-~/.config/m3u8-streamer/config/
+~/.config/m3u8-streamer/
 ```
 
 Windows
 ```
-DRIVE:\ProgramData\m3u8-streamer\config\
+DRIVE:\Users\USER\.config\m3u8-streamer\
 ```
