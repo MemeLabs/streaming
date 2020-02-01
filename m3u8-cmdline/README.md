@@ -60,10 +60,10 @@ The stream link MUST be replaced with `{0}` and the key MUST be replaced with `{
 #### Config Location
 Linux
 ```
-~/.config/m3u8-streamer/
+~/.config/m3u8-cmdline/
 ```
 
 Windows
 ```
-DRIVE:\Users\USER\.config\m3u8-streamer\
+DRIVE:\Users\USER\.config\m3u8-cmdline\
 ```
