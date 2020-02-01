@@ -4,7 +4,7 @@ Quick script for streaming m3u8 to angelthump.
 
 ## Getting Started
 
-Requires Python 3 and fFFmpeg. Once script downloaded you will need to have a copy of your angelthump stream key and use `--streamkey STREAMKEY`
+Requires Python 3 and FFmpeg. Once script is downloaded you will need to have a copy of your angelthump stream key and use `--streamkey STREAMKEY`
 to set it.
 
 Streamkey does not need to be set everytime you use this script.
@@ -47,4 +47,20 @@ optional arguments:
 #### Usual use:
 ```
 ./m3u8.py http://cool.site/stream.m3u8
+```
+
+
+### Custom FFmpeg
+
+Locate the config file `config.json` and change `ffmpeg` key to your ffmpeg script.
+
+#### Config Location
+Linux
+```
+~/.config/m3u8-streamer/config/
+```
+
+Windows
+```
+DRIVE:\ProgramData\m3u8-streamer\config\
 ```
