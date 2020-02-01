@@ -20,13 +20,12 @@ def Initialize(args):
     try:
       os.makedirs(config.directory)   
     except Exception as e:
-      print(e)
+      raise e
   if not os.path.isfile(config.path):
     try:
       with open(config.path, 'w') as config_file: json.dump(data, config_file)
     except Exception as e:
-      print(e)
-
+      raise e
 
 def readConfig(args):
   if args.streamkey is None:
@@ -60,8 +59,7 @@ def main(data, args):
   cmd = data[1].format(args.streamlink, streamkey).split(' ')
 
   try:
-    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE).wait()
-    # process = subprocess.Popen(cmd).wait()
+    process = subprocess.Popen(cmd).wait()
   except KeyboardInterrupt:
     print('Manual break by user')
     process.kill()
@@ -74,5 +72,10 @@ if __name__ == "__main__":
   parser.add_argument("streamlink")
   args = parser.parse_args()
   
-  Initialize(args)
-  main(readConfig(args), args)
+  try:
+    Initialize(args)
+    main(readConfig(args), args)
+  except Exception as e:
+    raise e
+
+  
