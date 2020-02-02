@@ -6,9 +6,10 @@ import argparse
 
 class config_info:
   def __init__(self, system):
-    self.directory = os.path.join(os.path.expanduser('~'), '.config','m3u8-cmdline')
+    self.directory = os.path.join(os.path.expanduser('~'), '.config','hls-restreamer')
     self.os = system
     self.path = self.directory + '/config.json' 
+    
 config = config_info(platform.system())
 
 
@@ -72,10 +73,5 @@ if __name__ == "__main__":
   parser.add_argument("streamlink")
   args = parser.parse_args()
   
-  try:
-    Initialize(args)
-    main(readConfig(args), args)
-  except Exception as e:
-    raise e
-
-  
+  Initialize(args)
+  main(readConfig(args), args)
