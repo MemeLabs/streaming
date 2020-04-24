@@ -1,15 +1,17 @@
+const {spawn} = require('child_process');
+const {sprintf} = require('sprintf-js');
 const cookie = require('cookie');
+const dotenv = require('dotenv');
 const fetch = require('isomorphic-fetch');
 const fs = require('fs').promises;
+const minimist = require('minimist');
 const nameToImdb = require('name-to-imdb');
 const path = require('path');
 const PlexAPI = require('plex-api');
-const {spawn} = require('child_process');
-const {sprintf} = require('sprintf-js');
 const WebSocket = require('ws');
 
-require('dotenv').config()
-const argv = require('minimist')(process.argv.slice(2));
+dotenv.config()
+const argv = minimist(process.argv.slice(2));
 
 const historyPath = path.join(__dirname, 'history.json');
 const history = require(historyPath);
@@ -66,6 +68,10 @@ const plex = new PlexAPI({
 
 async function loadPlaylists() {
   const playlistsRes = await plex.query('/playlists');
+  if (!playlistsRes.MediaContainer) {
+    return {metadata: [], index: {}}
+  }
+
   const metadata = await Promise.all(playlistsRes.MediaContainer.Metadata
     .map(({key}) => plex.query(key).then(res => res.MediaContainer.Metadata)));
   const index = metadata.flat().reduce((index, {key}) => ({...index, [key]: true}), {});
@@ -89,9 +95,8 @@ async function* selectMovies(previous, movies, playlists) {
 }
 
 function selectNext(prev, movies, playlists) {
-  let playlist = findPlaylist(prev, playlists);
-
   // if the previous movie was in a playlist pick the next movie in that playlist
+  let playlist = findPlaylist(prev, playlists);
   if (playlist) {
     const nextIndex = playlist.findIndex(({key}) => key === prev.key) + 1;
     if (nextIndex < playlist.length) {
@@ -213,7 +218,7 @@ function playMovie(movie, {audio, video, file}, nextMovie) {
     '-map', `0:${audio.index}`,
     '-b:v', '6000k',
     '-maxrate', '6000k',
-    '-x264-params', `keyint=${keyInterval}`,
+    '-x264-params', `keyint=${keyInterval};min-keyint=${keyInterval};no-scenecut`,
     '-c:a', 'aac',
     '-strict', '-2',
     '-ar', '44100',
@@ -245,8 +250,8 @@ async function appendToHistory(movie) {
 
 async function updateAngelthumpTitle(movie) {
   const accessToken = await createAngelthumpToken();
-  const res = await fetch('https://api.angelthump.com/user/v1/title', {
-    method: 'POST',
+  const res = await fetch('https://api.angelthump.com/v2/user/title', {
+    method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${accessToken}`,
