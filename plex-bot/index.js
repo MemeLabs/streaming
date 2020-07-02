@@ -5,7 +5,8 @@ const dotenv = require('dotenv');
 const fetch = require('isomorphic-fetch');
 const fs = require('fs').promises;
 const minimist = require('minimist');
-const nameToImdb = require('name-to-imdb');
+const {promisify} = require('util');
+const nameToImdb = promisify(require('name-to-imdb'));
 const path = require('path');
 const PlexAPI = require('plex-api');
 const WebSocket = require('ws');
@@ -300,15 +301,13 @@ async function notifyChat(movie) {
 }
 
 async function getImdbUrl(movie) {
-  const {res} = await new Promise((resolve, reject) => {
-    const query = {
+  try {
+    const id = await nameToImdb({
       name: movie.title,
       year: movie.year,
-    };
-    nameToImdb(query, (err, res, inf) => err ? reject(err) : resolve({res, inf}));
-  });
-
-  return res && res.startsWith('tt') && `imdb.com/title/${res}`;
+    })
+    return id && id.startsWith('tt') && `imdb.com/title/${id}`;
+  } catch (e) {}
 }
 
 async function logAsyncFn(action, fn) {
