@@ -26,8 +26,8 @@ To see all available flags run:
 ```
 python streaming.py --help
 
-usage: streaming.py [-h] [-F FOLDER] [-f FILE] [-st SUBTRACK] [-sf SUBFILE] [-at AUDIOTRACK] [--skip SKIP] [--max MAX]
-                    [--preset PRESET] [--ingest INGEST]
+usage: streaming.py [-h] [-F FOLDER] [-f FILE] [-st SUBTRACK] [-sf SUBFILE] [-at AUDIOTRACK] [-t TITLE] [--show-time]
+                    [--skip SKIP] [--max MAX] [-b BITRATE] [--preset PRESET] [--ingest INGEST]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -40,8 +40,13 @@ optional arguments:
                         Subtitle file
   -at AUDIOTRACK, --audiotrack AUDIOTRACK
                         Audio track
+  -t TITLE, --title TITLE
+                        Title to add to video feed
+  --show-time           add stream start time to video feed
   --skip SKIP           Which episode to start at (0 index)
   --max MAX             Final episode # to stream
+  -b BITRATE, --bitrate BITRATE
+                        ffmpeg bitrate to stream at
   --preset PRESET       ffmpeg '-preset': [ultrafast, superfast, veryfast, faster, fast, medium, slow, veryslow]
   --ingest INGEST       Angelthump ingest server to point to: [sgp, lon, fra, blr, ams, nyc, sfo]
 ```
