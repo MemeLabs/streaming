@@ -23,13 +23,12 @@ Change line 84 to path of angelthump key
 To see all available flags run:
 
 ```
-./streamscript --help
+python streaming.py --help
 ```
 
 ```
-usage: streaming.py [-h] [-F FOLDER] [-f FILE] [-st SUBTRACK] [-sf SUBFILE]
-                    [-at AUDIOTRACK] [--skip SKIP] [--max MAX]
-                    [--ingest INGEST]
+usage: streaming.py [-h] [-F FOLDER] [-f FILE] [-st SUBTRACK] [-sf SUBFILE] [-at AUDIOTRACK] [--skip SKIP] [--max MAX]
+                    [--preset PRESET] [--ingest INGEST]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -44,14 +43,11 @@ optional arguments:
                         Audio track
   --skip SKIP           Which episode to start at (0 index)
   --max MAX             Final episode # to stream
-  --ingest INGEST       Angelthump ingest server to point to: nyc, sfo, ams,
-                        fra
+  --preset PRESET       ffmpeg '-preset': [ultrafast, superfast, veryfast, faster, fast, medium, slow, veryslow]
+  --ingest INGEST       Angelthump ingest server to point to: [sgp, lon, fra, blr, ams, nyc, sfo]
 ```
 
-Example running
-
+Example running that will iterate through entire folder where each episode will be run with audio track 1 and subtitle track 0.
 ```
-./streamscript -F /absolute/path/to/favorite/anime/folder -at 1 -st 0
+python streaming.py -F /absolute/path/to/favorite/anime/folder -at 1 -st 0
 ```
-
-The above will iterate through entire folder where each episode will be run with audio track 1 and subtitle track 0.
