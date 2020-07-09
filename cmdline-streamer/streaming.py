@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from typing import List
+import shutil
 import glob
 import os
 import argparse
@@ -100,6 +101,10 @@ def main() -> int:
         help="Angelthump ingest server to point to: [sgp, lon, fra, blr, ams, nyc, sfo]",
     )
     args = parser.parse_args()
+
+    if shutil.which("ffmpeg") is None:
+        raise Exception("ffmpeg is required")
+
     streamkey = os.environ.get("ANGELTHUMP_STREAM_KEY")
     assert streamkey, "must provide AT stream key as $ANGELTHUMP_STREAM_KEY"
     streamkey = streamkey.strip()
