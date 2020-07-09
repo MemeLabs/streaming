@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 from typing import List
+from fractions import Fraction
+import pathlib
+import json
 import shutil
 import glob
 import os
@@ -37,6 +40,33 @@ def get_files(f, args) -> List[str]:
     return sorted_list
 
 
+def determine_key_interval(filename: str) -> int:
+    try:
+        data = 2 * Fraction(
+            json.loads(
+                subprocess.run(
+                    [
+                        "ffprobe",
+                        "-print_format",
+                        "json",
+                        "-show_format",
+                        "-loglevel",
+                        "fatal",
+                        "-show_streams",
+                        filename,
+                    ],
+                    stdout=subprocess.PIPE,
+                ).stdout
+            )["streams"][0]["avg_frame_rate"]
+        )
+    except Exception:
+        print(f"failed to determine key int: {data}")
+    else:
+        return data
+
+    return 0
+
+
 def stream_file(file, args, streamkey) -> None:
     """
     Create process to stream given file and streamkey
@@ -45,31 +75,77 @@ def stream_file(file, args, streamkey) -> None:
         args - argparse object
         streamkey - string for angelthump streameky
     """
-    clean_file = re.escape(file)
-    process = f'ffmpeg -re -i "{clean_file}" -c:v libx264 -pix_fmt yuv420p -preset {args.preset} -b:v 3000k -maxrate 3500k'
+    clean_file = pathlib.Path(file)
+    process = [
+        "ffmpeg",
+        "-re",
+        "-i",
+        f"{clean_file}",
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-preset",
+        f"{args.preset}",
+        "-b:v",
+        f"{args.bitrate}",
+        "-maxrate",
+        f"{args.bitrate}",
+    ]
     if args.subtrack:
-        process += (
-            f'-tune animation -vf subtitles="{clean_file}":si={args.subtrack} -map 0:0 '
-        )
+        process += [
+            "-tune",
+            "animation",
+            "-vf",
+            f'subtitles="{clean_file}":si={args.subtrack}' "-map",
+            "0:0",
+        ]
         if args.audiotrack:
-            process += f"-map 0:a:{args.audiotrack} "
+            process += ["-map", f"0:a:{args.audiotrack}"]
         else:
-            process += "-map 0:a:0 "
+            process += ["-map", "0:a:0"]
     elif args.subfile:
-        process += (
-            f'-tune animation -vf subtitles="{re.escape(args.subfile)}":si=0 -map 0:0 '
-        )
+        process += [
+            "-tune",
+            "animation",
+            "-vf",
+            f'subtitles="{pathlib.Path(args.subfile)}":si=0',
+            "-map",
+            "0:0",
+        ]
+
         if args.audiotrack:
-            process += f"-map 0:a:{args.audiotrack} "
+            process += ["-map", f"0:a:{args.audiotrack}"]
         else:
-            process += "-map 0:a:0 "
+            process += ["-map", "0:a:0"]
     elif args.audiotrack:
-        process += f"-map 0:a:{args.audiotrack} "
-    process += "-x264-params keyint=60 -c:a aac -strict 2 -ar 44100 -b:a 160k -ac 2 -bufsize 7000k "
-    process += (
-        f'-f flv "rtmp://{args.ingest}-ingest.angelthump.com:1935/live/{streamkey}"'
-    )
-    p = subprocess.Popen(process, shell=True)
+        process += ["-map", f"0:a:{args.audiotrack}"]
+
+    keyint = determine_key_interval(file)
+    if keyint == 0:
+        keyint = 60
+
+    process += [
+        "-x264-params",
+        f"'keyint={keyint};min-keyint={keyint};no-scenecut'",
+        "-c:a",
+        "aac",
+        "-strict",
+        "2",
+        "-ar",
+        "44100",
+        "-b:a",
+        "160k",
+        "-ac",
+        "2",
+        "-bufsize",
+        "7000k",
+        "-f",
+        "flv",
+        f"'rtmp://{args.ingest}-ingest.angelthump.com:1935/live/{streamkey}'",
+    ]
+
+    p = subprocess.Popen(" ".join(process), shell=True)
     try:
         p.wait()
     except KeyboardInterrupt:
@@ -91,6 +167,9 @@ def main() -> int:
     parser.add_argument("--skip", type=int, help="Which episode to start at (0 index)")
     parser.add_argument("--max", type=int, help="Final episode # to stream")
     parser.add_argument(
+        "-b", "--bitrate", default="3000k", help="ffmpeg bitrate to stream at"
+    )
+    parser.add_argument(
         "--preset",
         default="faster",
         help="ffmpeg '-preset': [ultrafast, superfast, veryfast, faster, fast, medium, slow, veryslow]",
@@ -102,8 +181,8 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    if shutil.which("ffmpeg") is None:
-        raise Exception("ffmpeg is required")
+    if shutil.which("ffmpeg") is None and shutil.which("ffprobe"):
+        raise Exception("ffmpeg and ffprobe is required")
 
     streamkey = os.environ.get("ANGELTHUMP_STREAM_KEY")
     assert streamkey, "must provide AT stream key as $ANGELTHUMP_STREAM_KEY"

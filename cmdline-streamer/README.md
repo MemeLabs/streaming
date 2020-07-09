@@ -4,17 +4,18 @@ Small script to automate background streaming of files or folder with ffmpeg
 
 ## Getting Started
 
-Requires ffmpeg and python3. Once script downloaded you will need to have a copy of your angelthump stream key and change the filepath to read that file.
+Requires ffmpeg and python3. Once installed, set the environment variable to set
+your Angelthump stream key
 
 This has only been tested on Ubuntu and Manjaro, none *nix OSs may have issues.
 
 ### Prerequisites
 
-Angelthump key https://www.angelthump.com/dashboard/settings#
-Set the `$ANGELTHUMP_STREAM_KEY` environment variable with the key
+- Angelthump key https://www.angelthump.com/dashboard/settings# set as `$ANGELTHUMP_STREAM_KEY` in environment variables
 
-Python3 https://www.python.org/downloads/
-FFmpeg https://ffmpeg.org/
+- Python3 https://www.python.org/downloads/
+- FFmpeg https://ffmpeg.org/
+- FFprobe https://ffmpeg.org/ffprobe.html
 
 ### Running
 ```
