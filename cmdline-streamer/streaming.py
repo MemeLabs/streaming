@@ -67,6 +67,12 @@ def determine_key_interval(filename: str) -> int:
     return 0
 
 
+def format_draw_text(text: str, x: int, y: int) -> str:
+    sanitized_text = re.sub(r"/(\:)/g", "\\$1", text)
+    sanitized_text = re.sub(r"/\'/g", "", sanitized_text)
+    return f'drawtext=text="{sanitized_text}": fontcolor=gray@0.4: fontsize=18: x={x}: y={y}'
+
+
 def stream_file(file, args, streamkey) -> None:
     """
     Create process to stream given file and streamkey
@@ -92,34 +98,33 @@ def stream_file(file, args, streamkey) -> None:
         "-maxrate",
         f"{args.bitrate}",
     ]
-    if args.subtrack:
+
+    filters = []
+    if args.show_time:
+        filters.append(format_draw_text(time.strftime("%H:%M"), 10, 10))
+
+    if args.title:
+        filters.append(format_draw_text(args.title, 10, 36))
+
+    if args.subtrack or args.subfile:
         process += [
             "-tune",
             "animation",
-            "-vf",
-            f'subtitles="{clean_file}":si={args.subtrack}' "-map",
-            "0:0",
-        ]
-        if args.audiotrack:
-            process += ["-map", f"0:a:{args.audiotrack}"]
-        else:
-            process += ["-map", "0:a:0"]
-    elif args.subfile:
-        process += [
-            "-tune",
-            "animation",
-            "-vf",
-            f'subtitles="{pathlib.Path(args.subfile)}":si=0',
             "-map",
             "0:0",
         ]
+        if args.substrack:
+            filters.append(f'subtitles="{clean_file}":si={args.subtrack}')
+        elif args.subfile:
+            filters.append(f'subtitles="{pathlib.Path(args.subfile)}":si=0')
 
-        if args.audiotrack:
-            process += ["-map", f"0:a:{args.audiotrack}"]
-        else:
-            process += ["-map", "0:a:0"]
-    elif args.audiotrack:
+    if len(filters) > 0:
+        process += ["-vf", "'" + ",".join(filters) + "'"]
+
+    if args.audiotrack:
         process += ["-map", f"0:a:{args.audiotrack}"]
+    else:
+        process += ["-map", "0:a:0"]
 
     keyint = determine_key_interval(file)
     if keyint == 0:
@@ -145,6 +150,8 @@ def stream_file(file, args, streamkey) -> None:
         f"'rtmp://{args.ingest}-ingest.angelthump.com:1935/live/{streamkey}'",
     ]
 
+    print(" ".join(process))
+    """
     p = subprocess.Popen(" ".join(process), shell=True)
     try:
         p.wait()
@@ -155,6 +162,7 @@ def stream_file(file, args, streamkey) -> None:
             pass
         p.wait()
         time.sleep(1)  # let stream end so there isn't a conflict
+    """
 
 
 def main() -> int:
@@ -164,6 +172,10 @@ def main() -> int:
     parser.add_argument("-st", "--subtrack", help="Subtitle track")
     parser.add_argument("-sf", "--subfile", help="Subtitle file")
     parser.add_argument("-at", "--audiotrack", help="Audio track")
+    parser.add_argument("-t", "--title", help="Title to add to video feed ")
+    parser.add_argument(
+        "--show-time", action="store_true", help="add stream start time to video feed"
+    )
     parser.add_argument("--skip", type=int, help="Which episode to start at (0 index)")
     parser.add_argument("--max", type=int, help="Final episode # to stream")
     parser.add_argument(
