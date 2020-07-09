@@ -11,22 +11,20 @@ This has only been tested on Ubuntu and Manjaro, none *nix OSs may have issues.
 ### Prerequisites
 
 Angelthump key https://www.angelthump.com/dashboard/settings#
+Set the `$ANGELTHUMP_STREAM_KEY` environment variable with the key
 
 Python3 https://www.python.org/downloads/
-
-Ffmpeg https://ffmpeg.org/
-
-Change line 84 to path of angelthump key
+FFmpeg https://ffmpeg.org/
 
 ### Running
+```
+pip install -e git+https://github.com/MemeLabs/streaming.git#egg=atstreaming\&#subdirectory=cmdline-streamer
+```
 
 To see all available flags run:
-
 ```
 python streaming.py --help
-```
 
-```
 usage: streaming.py [-h] [-F FOLDER] [-f FILE] [-st SUBTRACK] [-sf SUBFILE] [-at AUDIOTRACK] [--skip SKIP] [--max MAX]
                     [--preset PRESET] [--ingest INGEST]
 
@@ -49,5 +47,5 @@ optional arguments:
 
 Example running that will iterate through entire folder where each episode will be run with audio track 1 and subtitle track 0.
 ```
-python streaming.py -F /absolute/path/to/favorite/anime/folder -at 1 -st 0
+ANGELTHUMP_STREAM_KEY="xxx" python streaming.py -F /absolute/path/to/favorite/anime/folder -at 1 -st 0
 ```
