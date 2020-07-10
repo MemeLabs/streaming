@@ -24,13 +24,13 @@ def get_files(f, args) -> List[str]:
     """
     os.chdir(f)
     file_list = [
-        file
-        for file in list(glob.glob("*"))
-        if "NCOP" not in file
-        and "NCED" not in file
-        and ".txt" not in file
-        and os.path.isfile(file)
-        and os.stat(file).st_size > 100000000  # 100mb
+        f
+        for f in list(glob.glob("*"))
+        if "NCOP" not in f
+        and "NCED" not in f
+        and ".txt" not in f
+        and os.path.isfile(f)
+        and os.stat(f).st_size > 100000000  # 100mb
     ]
     sorted_list = sorted(file_list, key=lambda x: re.findall(r"\d\d+|$", x)[0])
     if args.skip:
@@ -60,7 +60,7 @@ def determine_key_interval(filename: str) -> int:
             )["streams"][0]["avg_frame_rate"]
         )
     except Exception:
-        print(f"failed to determine key int: {data}")
+        print("failed to determine key int")
     else:
         return data
 
@@ -73,20 +73,21 @@ def format_draw_text(text: str, x: int, y: int) -> str:
     return f'drawtext=text="{sanitized_text}": fontcolor=gray@0.4: fontsize=18: x={x}: y={y}'
 
 
-def stream_file(file, args, streamkey) -> None:
+def stream_file(f, args, streamkey) -> None:
     """
     Create process to stream given file and streamkey
     inpt:
-        file - string of file to stream
+        f - string of file to stream
         args - argparse object
         streamkey - string for angelthump streameky
     """
-    clean_file = pathlib.Path(file)
+    f = pathlib.Path(f)
+
     process = [
         "ffmpeg",
         "-re",
         "-i",
-        f"{clean_file}",
+        f"{f}",
         "-c:v",
         "libx264",
         "-pix_fmt",
@@ -114,7 +115,7 @@ def stream_file(file, args, streamkey) -> None:
             "0:0",
         ]
         if args.substrack:
-            filters.append(f'subtitles="{clean_file}":si={args.subtrack}')
+            filters.append(f'subtitles="{f}":si={args.subtrack}')
         elif args.subfile:
             filters.append(f'subtitles="{pathlib.Path(args.subfile)}":si=0')
 
@@ -123,20 +124,19 @@ def stream_file(file, args, streamkey) -> None:
 
     if args.audiotrack:
         process += ["-map", f"0:a:{args.audiotrack}"]
-    else:
-        process += ["-map", "0:a:0"]
 
-    keyint = determine_key_interval(file)
+    keyint = determine_key_interval(f)
     if keyint == 0:
         keyint = 60
 
+    ki = str(keyint).strip()
     process += [
         "-x264-params",
-        f"'keyint={keyint};min-keyint={keyint};no-scenecut'",
+        f"'keyint={ki};min-keyint={ki};no-scenecut'",
         "-c:a",
         "aac",
         "-strict",
-        "2",
+        "-2",
         "-ar",
         "44100",
         "-b:a",
@@ -199,12 +199,11 @@ def main() -> int:
     if args.folder:
         escFolder = args.folder
         files = get_files(escFolder, args)
-        for file in files:
-            print(file)
-            stream_file(file, args, streamkey)
+        for f in files:
+            print(f)
+            stream_file(f, args, streamkey)
     if args.file:
-        file = os.path.abspath(args.file)
-        stream_file(file, args, streamkey)
+        stream_file(args.file, args, streamkey)
 
     return 0
 
