@@ -12,7 +12,6 @@ This has only been tested on Ubuntu and Manjaro, none *nix OSs may have issues.
 ### Prerequisites
 
 - Angelthump key https://www.angelthump.com/dashboard/settings# set as `$ANGELTHUMP_STREAM_KEY` in environment variables
-
 - Python3 https://www.python.org/downloads/
 - FFmpeg https://ffmpeg.org/
 - FFprobe https://ffmpeg.org/ffprobe.html
@@ -54,4 +53,5 @@ optional arguments:
 Example running that will iterate through entire folder where each episode will be run with audio track 1 and subtitle track 0.
 ```
 ANGELTHUMP_STREAM_KEY="xxx" python streaming.py -F /absolute/path/to/favorite/anime/folder -at 1 -st 0
+ANGELTHUMP_STREAM_KEY="xxx" python streaming.py -f "http://qthttp.apple.com.edgesuite.net/1010qwoeiuryfg/sl.m3u8" --title "OwO" 
 ```
