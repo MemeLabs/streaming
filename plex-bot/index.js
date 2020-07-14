@@ -282,6 +282,7 @@ async function notifyChat(movie) {
   const options = {
     headers: {
       Cookie: cookie.serialize('jwt', process.env.STRIMS_JWT),
+      Origin: 'https://chat.strims.gg',
     },
   };
   const ws = new WebSocket('wss://chat.strims.gg/ws', [], options);
