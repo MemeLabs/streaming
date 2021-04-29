@@ -296,7 +296,9 @@ async function notifyChat(movie) {
   ]);
 
   const imdbInfo = imdbUrl && ` - ${imdbUrl} (${movie.rating})`;
-  let data = `${process.env.STRIMS_EMOTE} ${movie.title} (${movie.year})${imdbInfo} started at ${process.env.STRIMS_URL}`;
+  let emotes = process.env.STRIMS_EMOTES && process.env.STRIMS_EMOTES.split(",")
+  let selectedEmote = emotes && emotes[Math.floor(Math.random() * emotes.length)]
+  let data = `${selectedEmote} ${movie.title} (${movie.year})${imdbInfo} started at ${process.env.STRIMS_URL}`;
   ws.send('MSG ' + JSON.stringify({data}));
   ws.close();
 }
