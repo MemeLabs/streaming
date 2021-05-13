@@ -143,7 +143,7 @@ function generateWeights(prev, movies) {
   const writer = toLookupTable(prev.Writer);
   const country = toLookupTable(prev.Country);
   const role = toLookupTable(prev.Role);
-  const {year, rating} = prev;
+  const {year} = prev;
 
   return movies
     .map((movie, i) => {
@@ -154,7 +154,7 @@ function generateWeights(prev, movies) {
       weight += countMatches(movie.Country, country) * (+process.env.COUNTRY_WEIGHT || 1);
       weight += countMatches(movie.Role, role) * (+process.env.ROLE_WEIGHT || 1);
       weight += (movie.year === year ? 1 : 0) * (+process.env.YEAR_WEIGHT || 1);
-      weight *= rating;
+      weight += movie.rating * (+process.env.RATING_WEIGHT || 1);
       return [weight, i];
     })
     .sort(([a], [b]) => b - a);
@@ -169,7 +169,9 @@ async function selectMediaStreams(movie) {
   for (m of media) {
     const {Stream, file} = m.Part[0];
     const video = Stream.find(({streamType}) => streamType === 1);
-    const audio = Stream.find(({streamType, languageCode}) => streamType === 2 && languageCode === 'eng');
+
+    const audioTracks = Stream.filter(({streamType, languageCode}) => streamType === 2);
+    const audio = audioTracks.length === 1 ? audioTracks[0] : audioTracks.find(({streamType, languageCode}) => languageCode === 'eng');
 
     if (video && audio) {
       return {video, audio, file};
@@ -226,6 +228,7 @@ function playMovie(movie, {audio, video, file}, nextMovie) {
     '-b:a', '160k',
     '-ac', '2',
     '-bufsize', '7000k',
+    '-flvflags', 'no_duration_filesize',
     '-f', 'flv', process.env.ANGELTHUMP_INGEST,
   ];
   const ffmpeg = spawn('ffmpeg', options);
@@ -295,10 +298,10 @@ async function notifyChat(movie) {
     }),
   ]);
 
-  const imdbInfo = imdbUrl && ` - ${imdbUrl} (${movie.rating})`;
-  let emotes = process.env.STRIMS_EMOTES && process.env.STRIMS_EMOTES.split(",")
-  let selectedEmote = emotes && emotes[Math.floor(Math.random() * emotes.length)]
-  let data = `${selectedEmote} ${movie.title} (${movie.year})${imdbInfo} started at ${process.env.STRIMS_URL}`;
+  const imdbInfo = imdbUrl ? ` - ${imdbUrl} (${movie.rating})` : '';
+  const emotes = process.env.STRIMS_EMOTES && process.env.STRIMS_EMOTES.split(",")
+  const selectedEmote = emotes ? emotes[Math.floor(Math.random() * emotes.length)] : "";
+  const data = `${selectedEmote} ${movie.title} (${movie.year})${imdbInfo} started at ${process.env.STRIMS_URL}`;
   ws.send('MSG ' + JSON.stringify({data}));
   ws.close();
 }
