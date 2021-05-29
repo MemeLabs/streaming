@@ -13,6 +13,6 @@
     "dotenv": "^9.0.2",
     "isomorphic-fetch": "^3.0.0",
     "name-to-imdb": "^3.0.2",
-    "ws": "^7.4.5"
+    "ws": "^7.4.6"
   }
 }
