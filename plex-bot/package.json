@@ -6,7 +6,7 @@
   "scripts": {},
   "dependencies": {
     "es6-promise": "^4.2.8",
-    "minimist": "^1.2.3",
+    "minimist": "^1.2.6",
     "plex-api": "^5.3.1",
     "sprintf-js": "^1.1.2",
     "cookie": "^0.4.1",
