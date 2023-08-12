@@ -31,11 +31,14 @@ const plex = new PlexAPI({
   },
 });
 
+const keyInterval = 24 * 2;
+
 (async function() {
   const playlists = await loadPlaylists();
-  const library = await plex.query(`/library/sections/${process.env.PLEX_LIBRARY_ID}/all`);
-  const movies = library.MediaContainer.Metadata.filter(filterMetadata);
-  console.log(`found ${movies.length} movies`);
+  const library = await plex.query(`/library/sections/${process.env.PLEX_LIBRARY_ID}/all?type=1`);
+  const exclude = await plex.query(`/library/sections/${process.env.PLEX_LIBRARY_ID}/all?type=1&label=104206`);
+  const movies = library.MediaContainer.Metadata.filter(filterMetadata(exclude));
+  console.log(`filtered count: ${movies.length}`);
 
   let previous = history.previous && !argv['ignore-previous'] && movies.find(({key}) => key === history.previous);
   if (!previous) {
@@ -75,7 +78,7 @@ async function loadPlaylists() {
 
   const metadata = await Promise.all(playlistsRes.MediaContainer.Metadata
     .map(({key}) => plex.query(key).then(res => res.MediaContainer.Metadata)));
-  const index = metadata.flat().reduce((index, {key}) => ({...index, [key]: true}), {});
+  const index = metadata.flat().filter(v => !!v).reduce((index, {key}) => ({...index, [key]: true}), {});
   return {metadata, index};
 }
 
@@ -130,7 +133,7 @@ function selectNext(prev, movies, playlists) {
 
 function findPlaylist(movie, playlists) {
   if (playlists.index[movie.key]) {
-    return playlists.metadata.find(metadata => metadata.some(({key}) => key === movie.key));
+    return playlists.metadata.find(metadata => metadata && metadata.some(({key}) => key === movie.key));
   }
 }
 
@@ -167,14 +170,14 @@ async function selectMediaStreams(movie) {
     .sort((a, b) => b.bitrate - a.bitrate);
 
   for (m of media) {
-    const {Stream, file} = m.Part[0];
-    const video = Stream.find(({streamType}) => streamType === 1);
+    const {Stream, file, width} = m.Part[0];
+    const video = Stream?.find(({streamType}) => streamType === 1);
 
-    const audioTracks = Stream.filter(({streamType, languageCode}) => streamType === 2);
-    const audio = audioTracks.length === 1 ? audioTracks[0] : audioTracks.find(({streamType, languageCode}) => languageCode === 'eng');
+    const audioTracks = Stream?.filter(({streamType, languageCode}) => streamType === 2);
+    const audio = audioTracks?.length === 1 ? audioTracks[0] : audioTracks?.find(({streamType, languageCode}) => languageCode === 'eng');
 
     if (video && audio) {
-      return {video, audio, file};
+      return {video, audio, file, width};
     }
   }
 }
@@ -186,52 +189,84 @@ const filterMedia = media => (
   media.height <= process.env.MAX_RESOLUTION
 );
 
-const filterMetadata = ({type, Media, year, rating}) => (
-  type === 'movie' &&
-  Media.some(filterMedia) &&
-  year >= process.env.MIN_YEAR &&
-  year <= process.env.MAX_YEAR &&
-  rating >= process.env.MIN_RATING &&
-  rating <= process.env.MAX_RATING
-);
+const filterMetadata = (exclude) => {
+  const excludeKeys = exclude.MediaContainer.Metadata.reduce((prev, {key}) => ({[key]: true, ...prev}), {});
 
-function playMovie(movie, {audio, video, file}, nextMovie) {
-  const title = `${movie.title} (${movie.year}) • ${nextMovie.title} (${nextMovie.year})`;
-  const titleDrawText = formatDrawText(title, 10, 10);
+  return ({type, key, Media, year, rating}) => (
+    type === 'movie' &&
+    !excludeKeys[key] &&
+    Media.some(filterMedia) &&
+    year >= process.env.MIN_YEAR &&
+    year <= process.env.MAX_YEAR &&
+    rating >= process.env.MIN_RATING &&
+    rating <= process.env.MAX_RATING
+  );
+}
+
+function localFilePath(file) {
+  const parts = file.split('/');
+  parts[0] = process.env.LIBRARY_ROOT;
+  return parts.join(path.sep);
+}
+
+function playMovie(movie, {audio, video, file, width}, nextMovie) {
+  let fontSize = 18;
+  let lineHeight = 26;
+  if (width < 1920) {
+    fontSize = 12;
+    lineHeight = 18
+  }
+
+  const title = `${movie.title} (${movie.year}) · ${nextMovie.title} (${nextMovie.year})`;
+  const titleDrawText = formatDrawText(title, 10, 10, fontSize);
 
   const now = new Date();
   const timestamp = sprintf("%02d:%02d %s", now.getHours(), now.getMinutes(), process.env.TIME_ZONE);
-  const timeDrawText = formatDrawText(timestamp, 10, 36)
+  const timeDrawText = formatDrawText(timestamp, 10, 10 + lineHeight, fontSize)
 
   const keyInterval = Math.round(video.frameRate) * 2;
 
   const options = [
+    '-init_hw_device', 'cuda=cuda',
+    '-filter_hw_device', 'cuda',
+    '-hwaccel', 'nvdec',
+    '-hwaccel_output_format', 'cuda',
+    '-hwaccel_device', '0',
     '-re',
-    '-i', file,
-    '-vf', `${titleDrawText}, ${timeDrawText}`,
-    '-c:v', 'libx264',
-    '-pix_fmt', 'yuv420p',
-    '-preset', process.env.ENCODER_PRESET || 'veryfast',
-    '-tune', process.env.ENCODER_TUNE || 'zerolatency',
-    '-fflags', '+igndts',
-    '-fflags', '+genpts',
-    '-async', '1',
-    '-vsync', '1',
+    '-fflags',  '+igndts',
+    '-i', localFilePath(file),
     '-map', `0:${video.index}`,
     '-map', `0:${audio.index}`,
-    '-b:v', '6000k',
-    '-maxrate', '6000k',
-    '-x264-params', `keyint=${keyInterval};min-keyint=${keyInterval};no-scenecut`,
-    '-c:a', 'aac',
+    '-filter_complex', `[0:v]hwdownload,format=nv12,${titleDrawText},${timeDrawText}`,
+    '-c:v', 'h264_nvenc',
+    '-bf', '3',
+    '-b_ref_mode', 'middle',
+    '-temporal-aq', '1',
+    '-rc-lookahead', '10',
+    '-pix_fmt', 'yuv420p',
+    '-preset',  'p7',
+    '-tune',  'll',
+    '-profile',  'main',
+    '-no-scenecut',  '1',
+    '-g',  `${keyInterval}`,
+    '-keyint_min',  `${keyInterval}`,
+    '-rc',  'cbr',
+    '-2pass', '1',
+    '-multipass', 'qres',
+    '-b:v',  '6000k',
+    '-bufsize',  '3000k',
+    '-maxrate',  '6000k',
+    '-c:a',  'aac',
     '-strict', '-2',
-    '-ar', '44100',
-    '-b:a', '160k',
-    '-ac', '2',
-    '-bufsize', '7000k',
-    '-flvflags', 'no_duration_filesize',
-    '-f', 'flv', process.env.ANGELTHUMP_INGEST,
+    '-ar',  '44100',
+    '-b:a',  '160k',
+    '-ac',  '2',
+    '-fflags',  '+genpts',
+    '-flvflags',  'no_duration_filesize',
+    '-f',  'flv',  process.env.ANGELTHUMP_INGEST,
   ];
-  const ffmpeg = spawn('ffmpeg', options);
+
+  const ffmpeg = spawn(process.env.FFMPEG_PATH || 'ffmpeg', options);
   ffmpeg.stdout.pipe(process.stdout);
   ffmpeg.stderr.pipe(process.stderr);
 
@@ -241,9 +276,9 @@ function playMovie(movie, {audio, video, file}, nextMovie) {
   });
 }
 
-function formatDrawText(text, x, y) {
+function formatDrawText(text, x, y, size) {
   const sanitizedTitle = text.replace(/(\:)/g, '\\$1').replace(/\'/g, '');
-  return `drawtext=text='${sanitizedTitle}': fontcolor=gray@0.4: fontsize=18: x=${x}: y=${y}`
+  return `drawtext=fontfile=${process.env.FONT_PATH}:text='${sanitizedTitle}':fontcolor=gray@0.4:fontsize=${size}:x=${x}:y=${y}`
 }
 
 async function appendToHistory(movie) {
@@ -290,30 +325,59 @@ async function notifyChat(movie) {
   };
   const ws = new WebSocket('wss://chat.strims.gg/ws', [], options);
 
-  const [imdbUrl] = await Promise.all([
-    getImdbUrl(movie),
+  const [metadata] = await Promise.all([
+    getMetadata(movie),
     new Promise((resolve, reject) => {
       ws.on('open', resolve);
       ws.on('error', reject);
     }),
   ]);
 
-  const imdbInfo = imdbUrl ? ` - ${imdbUrl} (${movie.rating})` : '';
   const emotes = process.env.STRIMS_EMOTES && process.env.STRIMS_EMOTES.split(",")
   const selectedEmote = emotes ? emotes[Math.floor(Math.random() * emotes.length)] : "";
-  const data = `${selectedEmote} ${movie.title} (${movie.year})${imdbInfo} started at ${process.env.STRIMS_URL}`;
+  const data = `${selectedEmote} ${movie.title} (${movie.year})${metadata} started at ${process.env.STRIMS_URL}`;
   ws.send('MSG ' + JSON.stringify({data}));
   ws.close();
 }
 
-async function getImdbUrl(movie) {
+async function getMetadata(movie) {
+  let metadata = '';
   try {
-    const id = await nameToImdb({
-      name: movie.title,
-      year: movie.year,
-    })
-    return id && id.startsWith('tt') && `imdb.com/title/${id}`;
+    const title = encodeURIComponent(movie.title);
+    const year = encodeURIComponent(movie.year);
+    const res = await fetch(`http://www.omdbapi.com/?apikey=${process.env.OMDB_API_KEY}&type=movie&t=${title}&y=${year}`);
+    const data = await res.json();
+
+    if (data.Response !== 'True') {
+      return '';
+    }
+
+    if (data.imdbID) {
+      metadata += ` - imdb.com/title/${data.imdbID}`;
+    }
+
+    console.log(data);
+
+    const ratings = [];
+    for (const {Source, Value} of data.Ratings) {
+      switch (Source) {
+        case 'Internet Movie Database':
+          ratings.push(`IMDB: ${Value.replace(/\/10$/, '')}`);
+          break;
+        case 'Rotten Tomatoes':
+          ratings.push(`RT: ${Value}`);
+          break;
+        case 'Metacritic':
+          ratings.push(`MC: ${Value.replace(/\/100$/, '')}`);
+          break;
+      }
+    }
+    if (ratings.length) {
+      metadata += ` (${ratings.join(', ')})`;
+    }
   } catch (e) {}
+
+  return metadata;
 }
 
 async function logAsyncFn(action, fn) {
